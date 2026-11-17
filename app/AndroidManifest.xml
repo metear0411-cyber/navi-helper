@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="kr.navihelper" android:versionCode="1" android:versionName="1.0.0">
+    package="kr.navihelper" android:versionCode="2" android:versionName="1.0.1">
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="33"/>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
     <application android:label="네비 도우미" android:icon="@android:drawable/ic_menu_compass">

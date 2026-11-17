@@ -55,9 +55,13 @@ public class AutoDriveService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if (e == null || !PKG.contentEquals(String.valueOf(e.getPackageName()))) return;
         switch (e.getEventType()) {
+            case AccessibilityEvent.TYPE_VIEW_SCROLLED:
+                // 광고/배너 자동 슬라이드는 사람 조작이 아니므로 무시
+                if (isAutoScroll(e)) break;
+                lastUserAction = System.currentTimeMillis();
+                break;
             case AccessibilityEvent.TYPE_VIEW_CLICKED:
             case AccessibilityEvent.TYPE_VIEW_LONG_CLICKED:
-            case AccessibilityEvent.TYPE_VIEW_SCROLLED:
             case AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED:
             case AccessibilityEvent.TYPE_TOUCH_INTERACTION_START:
                 lastUserAction = System.currentTimeMillis();
@@ -65,6 +69,16 @@ public class AutoDriveService extends AccessibilityService {
             default:
                 break;
         }
+    }
+
+    static boolean isAutoScroll(AccessibilityEvent e) {
+        String cls = String.valueOf(e.getClassName()).toLowerCase();
+        if (cls.contains("viewpager")) return true;
+        AccessibilityNodeInfo src = e.getSource();
+        if (src == null) return true; // 출처를 모르면 사람 조작으로 보지 않음
+        String id = String.valueOf(src.getViewIdResourceName()).toLowerCase();
+        return id.contains("pager") || id.contains("banner") || id.contains("_ad") || id.contains("ad_")
+                || id.contains("video") || id.contains("shortform");
     }
 
     AccessibilityNodeInfo findButton() {
