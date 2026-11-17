@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="desc">티맵을 전체 화면으로 켰을 때 일정 시간 조작이 없으면 검색창 옆 주행(안전운전) 버튼을 대신 누르고, FYT 런처 홈 분할 칸의 글자 크기(dpi)를 맞춥니다. 티맵 외 다른 앱 화면은 읽지 않습니다.</string>
+</resources>

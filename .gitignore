@@ -1,0 +1,6 @@
+# 서명 키는 절대 올리지 않는다
+*.keystore
+*.jks
+# 빌드 결과물 (APK는 GitHub Releases에 따로 올린다)
+app/out/
+*.apk
