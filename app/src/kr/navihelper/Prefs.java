@@ -15,4 +15,14 @@ final class Prefs {
     static int dpi(Context c) { return p(c).getInt("dpi", 200); }
     static boolean dpiOn(Context c) { return p(c).getBoolean("dpiOn", true); }
     static void setDpi(Context c, int dpi, boolean on) { p(c).edit().putInt("dpi", dpi).putBoolean("dpiOn", on).apply(); }
+
+    /** 재부팅 등으로 접근성 서비스가 꺼지면 자동으로 다시 켤지. */
+    static boolean keepOn(Context c) { return p(c).getBoolean("keepOn", true); }
+    static void setKeepOn(Context c, boolean on) { p(c).edit().putBoolean("keepOn", on).apply(); }
+
+    static String lastRestored(Context c) { return p(c).getString("restored", ""); }
+    static void markRestored(Context c, String why) {
+        String t = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.KOREA).format(new java.util.Date());
+        p(c).edit().putString("restored", t + " (" + why + ")").commit();
+    }
 }

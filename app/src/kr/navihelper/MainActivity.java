@@ -15,7 +15,7 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     TextView st;
     EditText delay, dpi;
-    CheckBox on, dpiOn, inEmbedded;
+    CheckBox on, dpiOn, inEmbedded, keepOn;
 
     TextView label(LinearLayout l, String s) {
         TextView t = new TextView(this);
@@ -62,6 +62,9 @@ public class MainActivity extends Activity {
         dpi = num(l, Prefs.dpi(this));
         dpiOn = check(l, "분할 칸 dpi 조절 사용", Prefs.dpiOn(this));
 
+        label(l, "[재부팅 대비] 재부팅 뒤 접근성 서비스가 꺼져 있으면 자동으로 다시 켭니다 (adb 권한 필요)");
+        keepOn = check(l, "접근성 서비스 자동으로 다시 켜기", Prefs.keepOn(this));
+
         Button save = new Button(this);
         save.setTextSize(20);
         save.setText("저장");
@@ -92,19 +95,23 @@ public class MainActivity extends Activity {
         dpi.setText(String.valueOf(p));
         Prefs.setDpi(this, p, dpiOn.isChecked());
         AutoDriveService.densitySettingsChanged(dpiOn.isChecked());
+        Prefs.setKeepOn(this, keepOn.isChecked());
     }
 
     @Override protected void onResume() {
         super.onResume();
+        AccEnabler.ensure(this, "app");
         refresh();
     }
 
     void refresh() {
-        String en = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        boolean svc = en != null && en.contains(getPackageName());
-        boolean perm = checkSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == 0;
+        boolean svc = AccEnabler.isEnabled(this);
+        boolean perm = AccEnabler.hasPermission(this);
+        String last = Prefs.lastRestored(this);
         st.setText("접근성 서비스: " + (svc ? "켜짐" : "꺼짐 (아래 버튼으로 켜 주세요)")
-                + "\ndpi 조절 권한: " + (perm ? "있음" : "없음 (PC에서 adb로 1회 허용 필요, README 참고)")
+                + "\nadb 권한(dpi 조절·접근성 자동 켜기): " + (perm ? "있음" : "없음 (PC에서 adb로 1회 허용 필요, README 참고)")
+                + "\n접근성 자동 켜기: " + (Prefs.keepOn(this) ? "사용" : "사용 안 함")
+                + (last.isEmpty() ? "" : ", 마지막으로 다시 켠 때 " + last)
                 + "\n티맵: " + Prefs.delaySec(this) + "초, " + (Prefs.enabled(this) ? "사용" : "사용 안 함")
                 + (Prefs.inEmbedded(this) ? " (전체 화면 + 홈 분할 칸)" : " (전체 화면에서만)")
                 + "\n분할 칸 dpi: " + Prefs.dpi(this) + ", " + (Prefs.dpiOn(this) ? "사용" : "사용 안 함"));
