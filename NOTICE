@@ -1,0 +1,10 @@
+navi-helper
+Copyright (c) 2026 navi-helper contributors (MIT License, see LICENSE)
+
+This project bundles the following third-party library in libs/:
+
+Shizuku API (dev.rikka.shizuku:api, provider, aidl, shared) version 13.1.5
+https://github.com/RikkaApps/Shizuku-API
+Copyright (c) RikkaW
+Licensed under the MIT License
+https://github.com/RikkaApps/Shizuku-API/blob/master/LICENSE

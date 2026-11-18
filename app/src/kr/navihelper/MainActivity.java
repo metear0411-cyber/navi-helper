@@ -2,6 +2,7 @@ package kr.navihelper;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
@@ -52,6 +53,11 @@ public class MainActivity extends Activity {
         st = new TextView(this);
         st.setTextSize(20);
         l.addView(st);
+        Button help = new Button(this);
+        help.setTextSize(20);
+        help.setText("사용법 · 도움말");
+        help.setOnClickListener(v -> showHelp());
+        l.addView(help);
 
         label(l, "[티맵] 홈 화면에서 몇 초 동안 조작이 없으면 주행 버튼을 누를까요?");
         delay = num(l, Prefs.delaySec(this));
@@ -76,9 +82,46 @@ public class MainActivity extends Activity {
         acc.setText("접근성 설정 열기");
         acc.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         l.addView(acc);
+
+        label(l, "[권한 받기] PC 없이 Shizuku로 adb 권한을 한 번 받습니다 (README 참고)");
+        Button shz = new Button(this);
+        shz.setTextSize(20);
+        shz.setText("Shizuku로 권한 받기");
+        shz.setOnClickListener(v -> {
+            st.setText("권한 받는 중...");
+            ShizukuGrant.start(this, (ok, msg) -> { refresh(); st.append("\n\n" + (ok ? "✅ " : "❌ ") + msg); });
+        });
+        l.addView(shz);
+        Button shzGet = new Button(this);
+        shzGet.setTextSize(20);
+        shzGet.setText("Shizuku 설치 (플레이스토어)");
+        shzGet.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + ShizukuGrant.SHIZUKU_PKG)));
+            } catch (Exception e) {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + ShizukuGrant.SHIZUKU_PKG)));
+            }
+        });
+        l.addView(shzGet);
+
         ScrollView sv = new ScrollView(this);
         sv.addView(l);
         setContentView(sv);
+    }
+
+    void showHelp() {
+        TextView t = new TextView(this);
+        t.setTextSize(18);
+        t.setPadding(48, 24, 48, 24);
+        t.setTextIsSelectable(true);
+        t.setText(HelpText.BODY.replace("kr.navihelper", getPackageName()));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(t);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(HelpText.TITLE)
+                .setView(sv)
+                .setPositiveButton("닫기", null)
+                .show();
     }
 
     static int clamp(String s, int def, int lo, int hi) {
@@ -104,6 +147,12 @@ public class MainActivity extends Activity {
         super.onResume();
         AccEnabler.ensure(this, "app");
         refresh();
+        // 처음 실행이고 아직 아무 설정도 안 된 상태면 도움말을 한 번 띄운다
+        android.content.SharedPreferences sp = Prefs.p(this);
+        if (!sp.getBoolean("helpShown", false)) {
+            sp.edit().putBoolean("helpShown", true).apply();
+            if (!AccEnabler.isEnabled(this) || !AccEnabler.hasPermission(this)) showHelp();
+        }
     }
 
     void refresh() {
@@ -111,7 +160,7 @@ public class MainActivity extends Activity {
         boolean perm = AccEnabler.hasPermission(this);
         String last = Prefs.lastRestored(this);
         st.setText("접근성 서비스: " + (svc ? "켜짐" : "꺼짐 (아래 버튼으로 켜 주세요)")
-                + "\nadb 권한(dpi 조절·접근성 자동 켜기): " + (perm ? "있음" : "없음 (PC에서 adb로 1회 허용 필요, README 참고)")
+                + "\nadb 권한(dpi 조절·접근성 자동 켜기): " + (perm ? "있음" : "없음 (아래 'Shizuku로 권한 받기'로 1회 허용)")
                 + "\n접근성 자동 켜기: " + (Prefs.keepOn(this) ? "사용" : "사용 안 함")
                 + (last.isEmpty() ? "" : ", 마지막으로 다시 켠 때 " + last)
                 + "\n티맵: " + Prefs.delaySec(this) + "초, " + (Prefs.enabled(this) ? "사용" : "사용 안 함")

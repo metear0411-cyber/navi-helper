@@ -32,9 +32,13 @@ rm -rf out
 mkdir -p out/res out/classes out/dex
 "$AAPT2" compile --dir res -o out/res/res.zip
 "$AAPT2" link -I "$AJ" --manifest AndroidManifest.xml -o out/base.apk out/res/res.zip --java out/gen --auto-add-overlay
-javac -encoding UTF-8 -source 11 -target 11 -classpath "$AJ" -d out/classes \
+# libs/*.jar: Shizuku API (Apache-2.0, dev.rikka.shizuku 13.1.5)
+SEP=":"; [ -f "$BT/aapt2.exe" ] && SEP=";"
+CP="$(P "$AJ")"; LIBJARS=""
+for j in ../libs/*.jar; do [ -f "$j" ] && CP="$CP$SEP$(P "$j")" && LIBJARS="$LIBJARS $(P "$j")"; done
+javac -encoding UTF-8 -source 11 -target 11 -classpath "$CP" -d out/classes \
   $(find src out/gen -name '*.java')
-D8 --min-api 30 --lib "$(P "$AJ")" --output "$(P out/dex)" $(find out/classes -name '*.class' | while read -r f; do P "$f"; done)
+D8 --min-api 30 --lib "$(P "$AJ")" --output "$(P out/dex)" $(find out/classes -name '*.class' | while read -r f; do P "$f"; done) $LIBJARS
 cp out/base.apk out/unsigned.apk
 python3 -c "import zipfile;z=zipfile.ZipFile('out/unsigned.apk','a');z.write('out/dex/classes.dex','classes.dex');z.close()" 2>/dev/null \
   || python -c "import zipfile;z=zipfile.ZipFile('out/unsigned.apk','a');z.write('out/dex/classes.dex','classes.dex');z.close()"
