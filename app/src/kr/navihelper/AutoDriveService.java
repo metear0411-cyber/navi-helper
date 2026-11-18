@@ -29,7 +29,8 @@ public class AutoDriveService extends AccessibilityService {
     long lastAdClose = 0;
 
     /** 티맵 광고 팝업의 '오늘은 그만보기' 류 버튼 글자. */
-    static final String[] AD_SKIP = {"오늘은 그만보기", "오늘 그만보기", "오늘 하루 보지 않기", "오늘 하루 그만보기", "다시 보지 않기", "그만보기"};
+    static final String[] AD_SKIP = {"오늘은 그만보기", "오늘 그만보기", "오늘 하루 보지 않기", "오늘 하루 그만보기", "다시 보지 않기",
+            "그만보기", "그만 보기", "보지 않기", "보지않기"};
 
     final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -137,6 +138,16 @@ public class AutoDriveService extends AccessibilityService {
                             lastAdClose = now;
                             Log.i(TAG, "closed ad popup via '" + t + "'");
                             return true;
+                        }
+                        // '그만보기' 글자가 눌리지 않는 팝업이면, 같은 창의 짧은 '닫기'를 누른다
+                        for (AccessibilityNodeInfo x : root.findAccessibilityNodeInfosByText("닫기")) {
+                            CharSequence xt = x.getText() != null ? x.getText() : x.getContentDescription();
+                            if (!x.isVisibleToUser() || xt == null || xt.length() > 4) continue;
+                            if (clickNodeOrParent(x)) {
+                                lastAdClose = now;
+                                Log.i(TAG, "closed ad popup via '닫기' (next to '" + t + "')");
+                                return true;
+                            }
                         }
                     }
                 }
