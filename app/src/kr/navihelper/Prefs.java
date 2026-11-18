@@ -16,6 +16,9 @@ final class Prefs {
     static boolean dpiOn(Context c) { return p(c).getBoolean("dpiOn", true); }
     static void setDpi(Context c, int dpi, boolean on) { p(c).edit().putInt("dpi", dpi).putBoolean("dpiOn", on).apply(); }
 
+    static boolean closeAd(Context c) { return p(c).getBoolean("closeAd", true); }
+    static void setCloseAd(Context c, boolean on) { p(c).edit().putBoolean("closeAd", on).apply(); }
+
     /** 재부팅 등으로 접근성 서비스가 꺼지면 자동으로 다시 켤지. */
     static boolean keepOn(Context c) { return p(c).getBoolean("keepOn", true); }
     static void setKeepOn(Context c, boolean on) { p(c).edit().putBoolean("keepOn", on).apply(); }

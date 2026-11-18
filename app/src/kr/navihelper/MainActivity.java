@@ -15,7 +15,7 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     TextView st;
     EditText delay, dpi;
-    CheckBox on, dpiOn, inEmbedded, keepOn;
+    CheckBox on, dpiOn, inEmbedded, keepOn, closeAd;
 
     TextView label(LinearLayout l, String s) {
         TextView t = new TextView(this);
@@ -57,6 +57,7 @@ public class MainActivity extends Activity {
         delay = num(l, Prefs.delaySec(this));
         on = check(l, "티맵 자동 주행 사용", Prefs.enabled(this));
         inEmbedded = check(l, "홈 화면 분할 칸의 티맵에서도 자동 주행 (발열 증가)", Prefs.inEmbedded(this));
+        closeAd = check(l, "티맵 광고 팝업 자동 닫기 ('오늘은 그만보기')", Prefs.closeAd(this));
 
         label(l, "[홈 화면 분할 칸] 글자 크기(dpi). 기본 160, 클수록 크게 보임 (추천 190~220)");
         dpi = num(l, Prefs.dpi(this));
@@ -96,6 +97,7 @@ public class MainActivity extends Activity {
         Prefs.setDpi(this, p, dpiOn.isChecked());
         AutoDriveService.densitySettingsChanged(dpiOn.isChecked());
         Prefs.setKeepOn(this, keepOn.isChecked());
+        Prefs.setCloseAd(this, closeAd.isChecked());
     }
 
     @Override protected void onResume() {
@@ -114,6 +116,7 @@ public class MainActivity extends Activity {
                 + (last.isEmpty() ? "" : ", 마지막으로 다시 켠 때 " + last)
                 + "\n티맵: " + Prefs.delaySec(this) + "초, " + (Prefs.enabled(this) ? "사용" : "사용 안 함")
                 + (Prefs.inEmbedded(this) ? " (전체 화면 + 홈 분할 칸)" : " (전체 화면에서만)")
+                + "\n광고 팝업 자동 닫기: " + (Prefs.closeAd(this) ? "사용" : "사용 안 함")
                 + "\n분할 칸 dpi: " + Prefs.dpi(this) + ", " + (Prefs.dpiOn(this) ? "사용" : "사용 안 함"));
     }
 }

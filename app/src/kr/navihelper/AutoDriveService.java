@@ -25,6 +25,11 @@ public class AutoDriveService extends AccessibilityService {
     long lastUserAction = System.currentTimeMillis();
     long visibleSince = 0;
     long lastClick = 0;
+    long selfClickAt = 0;   // 이 앱이 누른 클릭은 사람 조작으로 세지 않기 위해
+    long lastAdClose = 0;
+
+    /** 티맵 광고 팝업의 '오늘은 그만보기' 류 버튼 글자. */
+    static final String[] AD_SKIP = {"오늘은 그만보기", "오늘 그만보기", "오늘 하루 보지 않기", "오늘 하루 그만보기", "다시 보지 않기", "그만보기"};
 
     final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -61,6 +66,9 @@ public class AutoDriveService extends AccessibilityService {
                 lastUserAction = System.currentTimeMillis();
                 break;
             case AccessibilityEvent.TYPE_VIEW_CLICKED:
+                if (System.currentTimeMillis() - selfClickAt < 1500) break; // 이 앱이 누른 것
+                lastUserAction = System.currentTimeMillis();
+                break;
             case AccessibilityEvent.TYPE_VIEW_LONG_CLICKED:
             case AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED:
             case AccessibilityEvent.TYPE_TOUCH_INTERACTION_START:
@@ -98,7 +106,47 @@ public class AutoDriveService extends AccessibilityService {
         return null;
     }
 
+    /** 클릭 가능한 자신 또는 가장 가까운 부모를 누른다. */
+    boolean clickNodeOrParent(AccessibilityNodeInfo n) {
+        for (int depth = 0; n != null && depth < 4; depth++, n = n.getParent()) {
+            if (n.isClickable() && n.isEnabled()) {
+                selfClickAt = System.currentTimeMillis();
+                return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+        }
+        return false;
+    }
+
+    /** 티맵 광고 팝업이 떠 있으면 '오늘은 그만보기'를 눌러 닫는다. 닫았으면 true. */
+    boolean closeAdPopup() {
+        if (!Prefs.closeAd(this)) return false;
+        long now = System.currentTimeMillis();
+        if (now - lastAdClose < 2000) return false;
+        SparseArray<List<AccessibilityWindowInfo>> all = getWindowsOnAllDisplays();
+        for (int i = 0; i < all.size(); i++) {
+            for (AccessibilityWindowInfo w : all.valueAt(i)) {
+                if (w.getDisplayId() != android.view.Display.DEFAULT_DISPLAY && !Prefs.inEmbedded(this)) continue;
+                AccessibilityNodeInfo root = w.getRoot();
+                if (root == null || !PKG.contentEquals(String.valueOf(root.getPackageName()))) continue;
+                for (String word : AD_SKIP) {
+                    for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(word)) {
+                        if (!n.isVisibleToUser()) continue;
+                        CharSequence t = n.getText() != null ? n.getText() : n.getContentDescription();
+                        if (t == null || t.length() > 20) continue; // 긴 안내문 속 낱말은 건너뜀
+                        if (clickNodeOrParent(n)) {
+                            lastAdClose = now;
+                            Log.i(TAG, "closed ad popup via '" + t + "'");
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     void check() {
+        if (closeAdPopup()) { visibleSince = 0; return; }
         if (!Prefs.enabled(this)) { visibleSince = 0; return; }
         long now = System.currentTimeMillis();
         AccessibilityNodeInfo btn = findButton();
@@ -107,6 +155,7 @@ public class AutoDriveService extends AccessibilityService {
         long waitMs = Prefs.delaySec(this) * 1000L;
         long idleFrom = Math.max(visibleSince, lastUserAction);
         if (now - idleFrom >= waitMs && now - lastClick > waitMs) {
+            selfClickAt = now;
             boolean ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             lastClick = now;
             visibleSince = 0;
