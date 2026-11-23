@@ -26,7 +26,9 @@ public class AutoDriveService extends AccessibilityService {
     /** 티맵 업데이트로 버튼 id가 바뀌어도 찾을 수 있게: 버튼 설명 글자(옛 버전 contentDescription "안전운행"). */
     static final String[] BTN_WORDS = {"안전운행", "안전운전", "안전 운행", "안전 운전"};
     /** id 일부로 찾기(버튼 이름이 조금 바뀐 경우). */
-    static final String[] BTN_ID_PARTS = {"safety_driving", "safe_driving", "safety_drive", "safe_drive_button", "btn_safe_drive"};
+    static final String[] BTN_ID_PARTS = {"button_safety_driv", "btn_safety_driv"};
+    /** 이게 보이면 이미 주행 화면이다 → 아무것도 누르지 않는다. */
+    static final String[] DRIVING_IDS = {PKG + ":id/end_of_safe_drive_button", PKG + ":id/keep_driving_button"};
 
     final Handler h = new Handler(Looper.getMainLooper());
     long lastUserAction = System.currentTimeMillis();
@@ -120,6 +122,11 @@ public class AutoDriveService extends AccessibilityService {
 
     /** 1) 원래 id  2) 설명 글자 "안전운행"  3) id 일부 — 순서로 찾는다. */
     AccessibilityNodeInfo findIn(AccessibilityNodeInfo root) {
+        for (String id : DRIVING_IDS) {
+            for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(id)) {
+                if (n.isVisibleToUser()) return null; // 이미 주행 중
+            }
+        }
         for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(BTN)) {
             if (n.isVisibleToUser() && n.isEnabled()) { noteFound("id"); return n; }
         }
@@ -127,7 +134,8 @@ public class AutoDriveService extends AccessibilityService {
             for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(word)) {
                 if (!n.isVisibleToUser()) continue;
                 CharSequence t = n.getContentDescription() != null ? n.getContentDescription() : n.getText();
-                if (t == null || t.length() > 8) continue; // 안내문·메뉴 글 속 낱말은 건너뜀
+                // "안전운전 종료"처럼 다른 말이 붙은 건 건너뜀 — 글자가 정확히 같을 때만
+                if (t == null || !word.contentEquals(t.toString().trim())) continue;
                 noteFound("글자 '" + t + "'");
                 return n;
             }
@@ -142,7 +150,8 @@ public class AutoDriveService extends AccessibilityService {
         String id = n.getViewIdResourceName();
         if (id != null && n.isVisibleToUser()) {
             String low = id.toLowerCase();
-            for (String part : BTN_ID_PARTS) if (low.contains(part)) return n;
+            boolean bad = low.contains("end") || low.contains("exit") || low.contains("stop") || low.contains("finish");
+            if (!bad) for (String part : BTN_ID_PARTS) if (low.contains(part)) return n;
         }
         for (int i = 0; i < n.getChildCount(); i++) {
             AccessibilityNodeInfo r = findByIdPart(n.getChild(i), depth + 1);
@@ -186,7 +195,6 @@ public class AutoDriveService extends AccessibilityService {
         return ok;
     }
 
-    long verifyAt = 0;  // 누른 뒤 화면이 바뀌었는지 볼 시각
 
     /** 클릭 가능한 자신 또는 가장 가까운 부모를 누른다. */
     boolean clickNodeOrParent(AccessibilityNodeInfo n) {
@@ -254,22 +262,9 @@ public class AutoDriveService extends AccessibilityService {
         // 광고를 닫은 틱에는 누르지만 않고, 기다린 시간은 그대로 둔다(예전엔 0으로 돌려서
         // 늘 떠 있는 글자를 '광고'로 잘못 보면 자동 주행이 영영 안 눌렸다).
         if (closeAdPopup()) return;
-        if (!Prefs.enabled(this)) { visibleSince = 0; verifyAt = 0; return; }
+        if (!Prefs.enabled(this)) { visibleSince = 0; return; }
         long now = System.currentTimeMillis();
         AccessibilityNodeInfo btn = findButton();
-        if (verifyAt != 0 && now >= verifyAt) {
-            verifyAt = 0;
-            // 누른다고 했는데 2초 뒤에도 버튼이 그대로면(클릭이 안 먹음) 손가락 톡으로 한 번 더
-            if (btn != null && now - lastUserAction > 2000) {
-                Rect r = new Rect();
-                btn.getBoundsInScreen(r);
-                Log.i(TAG, "button still visible after click, retry with tap");
-                Prefs.note(this, "눌러도 화면이 그대로라 손가락 톡으로 다시 누름");
-                tapCenter(r);
-                visibleSince = 0;
-                return;
-            }
-        }
         if (btn == null) { visibleSince = 0; return; }
         if (visibleSince == 0) visibleSince = now;
         long waitMs = Prefs.delaySec(this) * 1000L;
@@ -279,7 +274,6 @@ public class AutoDriveService extends AccessibilityService {
             boolean ok = pressButton(btn);
             lastClick = now;
             visibleSince = 0;
-            verifyAt = now + 2000;
             Log.i(TAG, "clicked safety driving button: " + ok);
             Prefs.note(this, "자동 주행 누름(" + lastFoundBy + "): " + (ok ? "성공" : "실패"));
         }
