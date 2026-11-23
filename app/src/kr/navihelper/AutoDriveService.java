@@ -34,6 +34,9 @@ public class AutoDriveService extends AccessibilityService {
     long lastClick = 0;
     long selfClickAt = 0;   // 이 앱이 누른 클릭은 사람 조작으로 세지 않기 위해
     long lastAdClose = 0;
+    int adCloseBurst = 0;      // 1분 안에 연달아 '닫은' 횟수
+    long adBurstFrom = 0;
+    long adPauseUntil = 0;     // 닫아도 안 사라지는 글자를 계속 누르지 않도록 쉬는 시각
 
     /** 티맵 광고 팝업의 '오늘은 그만보기' 류 버튼 글자. */
     static final String[] AD_SKIP = {"오늘은 그만보기", "오늘 그만보기", "오늘 하루 보지 않기", "오늘 하루 그만보기", "다시 보지 않기",
@@ -200,7 +203,7 @@ public class AutoDriveService extends AccessibilityService {
     boolean closeAdPopup() {
         if (!Prefs.closeAd(this)) return false;
         long now = System.currentTimeMillis();
-        if (now - lastAdClose < 2000) return false;
+        if (now - lastAdClose < 2000 || now < adPauseUntil) return false;
         SparseArray<List<AccessibilityWindowInfo>> all = getWindowsOnAllDisplays();
         for (int i = 0; i < all.size(); i++) {
             for (AccessibilityWindowInfo w : all.valueAt(i)) {
@@ -213,8 +216,7 @@ public class AutoDriveService extends AccessibilityService {
                         CharSequence t = n.getText() != null ? n.getText() : n.getContentDescription();
                         if (t == null || t.length() > 20) continue; // 긴 안내문 속 낱말은 건너뜀
                         if (clickNodeOrParent(n)) {
-                            lastAdClose = now;
-                            Log.i(TAG, "closed ad popup via '" + t + "'");
+                            markAdClosed(now, "'" + t + "'");
                             return true;
                         }
                         // '그만보기' 글자가 눌리지 않는 팝업이면, 같은 창의 짧은 '닫기'를 누른다
@@ -222,8 +224,7 @@ public class AutoDriveService extends AccessibilityService {
                             CharSequence xt = x.getText() != null ? x.getText() : x.getContentDescription();
                             if (!x.isVisibleToUser() || xt == null || xt.length() > 4) continue;
                             if (clickNodeOrParent(x)) {
-                                lastAdClose = now;
-                                Log.i(TAG, "closed ad popup via '닫기' (next to '" + t + "')");
+                                markAdClosed(now, "'닫기' ('" + t + "' 옆)");
                                 return true;
                             }
                         }
@@ -234,8 +235,25 @@ public class AutoDriveService extends AccessibilityService {
         return false;
     }
 
+    void markAdClosed(long now, String what) {
+        lastAdClose = now;
+        if (now - adBurstFrom > 60000) { adBurstFrom = now; adCloseBurst = 0; }
+        adCloseBurst++;
+        Log.i(TAG, "closed ad popup via " + what);
+        if (adCloseBurst >= 3) {
+            // 1분에 세 번 넘게 '닫았는데' 또 있다 = 광고가 아니라 늘 떠 있는 글자. 10분 쉰다.
+            adPauseUntil = now + 10 * 60000;
+            adCloseBurst = 0;
+            Prefs.note(this, "광고 닫기: " + what + " 가 안 사라져 10분 쉼");
+        } else {
+            Prefs.note(this, "광고 닫음: " + what);
+        }
+    }
+
     void check() {
-        if (closeAdPopup()) { visibleSince = 0; return; }
+        // 광고를 닫은 틱에는 누르지만 않고, 기다린 시간은 그대로 둔다(예전엔 0으로 돌려서
+        // 늘 떠 있는 글자를 '광고'로 잘못 보면 자동 주행이 영영 안 눌렸다).
+        if (closeAdPopup()) return;
         if (!Prefs.enabled(this)) { visibleSince = 0; verifyAt = 0; return; }
         long now = System.currentTimeMillis();
         AccessibilityNodeInfo btn = findButton();
@@ -246,6 +264,7 @@ public class AutoDriveService extends AccessibilityService {
                 Rect r = new Rect();
                 btn.getBoundsInScreen(r);
                 Log.i(TAG, "button still visible after click, retry with tap");
+                Prefs.note(this, "눌러도 화면이 그대로라 손가락 톡으로 다시 누름");
                 tapCenter(r);
                 visibleSince = 0;
                 return;
@@ -262,6 +281,7 @@ public class AutoDriveService extends AccessibilityService {
             visibleSince = 0;
             verifyAt = now + 2000;
             Log.i(TAG, "clicked safety driving button: " + ok);
+            Prefs.note(this, "자동 주행 누름(" + lastFoundBy + "): " + (ok ? "성공" : "실패"));
         }
     }
 

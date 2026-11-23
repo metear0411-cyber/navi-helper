@@ -166,6 +166,8 @@ public class MainActivity extends Activity {
                 + "\n티맵: " + Prefs.delaySec(this) + "초, " + (Prefs.enabled(this) ? "사용" : "사용 안 함")
                 + (Prefs.inEmbedded(this) ? " (전체 화면 + 홈 분할 칸)" : " (전체 화면에서만)")
                 + "\n광고 팝업 자동 닫기: " + (Prefs.closeAd(this) ? "사용" : "사용 안 함")
-                + "\n분할 칸 dpi: " + Prefs.dpi(this) + ", " + (Prefs.dpiOn(this) ? "사용" : "사용 안 함"));
+                + "\n분할 칸 dpi: " + Prefs.dpi(this) + ", " + (Prefs.dpiOn(this) ? "사용" : "사용 안 함")
+                + "\n\n최근 동작 (안 될 때 이 화면을 캡처해 주세요)\n"
+                + (Prefs.recent(this).isEmpty() ? "아직 없음" : Prefs.recent(this).trim()));
     }
 }

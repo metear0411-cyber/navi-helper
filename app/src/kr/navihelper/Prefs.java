@@ -28,4 +28,15 @@ final class Prefs {
         String t = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.KOREA).format(new java.util.Date());
         p(c).edit().putString("restored", t + " (" + why + ")").commit();
     }
+
+    /** 앱 화면에 보여 줄 최근 동작 몇 줄(원인 찾기용). */
+    static String recent(Context c) { return p(c).getString("recent", ""); }
+    static void note(Context c, String msg) {
+        String t = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.KOREA).format(new java.util.Date());
+        String all = t + " " + msg + "\n" + recent(c);
+        String[] lines = all.split("\n");
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < Math.min(8, lines.length); i++) b.append(lines[i]).append('\n');
+        p(c).edit().putString("recent", b.toString()).apply();
+    }
 }
