@@ -1,6 +1,9 @@
 package kr.navihelper;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.GestureDescription;
+import android.graphics.Path;
+import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -20,6 +23,10 @@ public class AutoDriveService extends AccessibilityService {
     static final String PKG = "com.skt.tmap.ku";
     static final String BTN = PKG + ":id/button_safety_driving";
     static final long CHECK_MS = 1000;
+    /** 티맵 업데이트로 버튼 id가 바뀌어도 찾을 수 있게: 버튼 설명 글자(옛 버전 contentDescription "안전운행"). */
+    static final String[] BTN_WORDS = {"안전운행", "안전운전", "안전 운행", "안전 운전"};
+    /** id 일부로 찾기(버튼 이름이 조금 바뀐 경우). */
+    static final String[] BTN_ID_PARTS = {"safety_driving", "safe_driving", "safety_drive", "safe_drive_button", "btn_safe_drive"};
 
     final Handler h = new Handler(Looper.getMainLooper());
     long lastUserAction = System.currentTimeMillis();
@@ -98,14 +105,85 @@ public class AutoDriveService extends AccessibilityService {
                 if (w.getDisplayId() != android.view.Display.DEFAULT_DISPLAY && !Prefs.inEmbedded(this)) continue;
                 AccessibilityNodeInfo root = w.getRoot();
                 if (root == null || !PKG.contentEquals(String.valueOf(root.getPackageName()))) continue;
-                List<AccessibilityNodeInfo> found = root.findAccessibilityNodeInfosByViewId(BTN);
-                for (AccessibilityNodeInfo n : found) {
-                    if (n.isVisibleToUser() && n.isEnabled()) return n;
-                }
+                AccessibilityNodeInfo n = findIn(root);
+                if (n != null) { btnDisplay = w.getDisplayId(); return n; }
             }
         }
         return null;
     }
+
+    int btnDisplay = android.view.Display.DEFAULT_DISPLAY;
+    String lastFoundBy = "";
+
+    /** 1) 원래 id  2) 설명 글자 "안전운행"  3) id 일부 — 순서로 찾는다. */
+    AccessibilityNodeInfo findIn(AccessibilityNodeInfo root) {
+        for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(BTN)) {
+            if (n.isVisibleToUser() && n.isEnabled()) { noteFound("id"); return n; }
+        }
+        for (String word : BTN_WORDS) {
+            for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(word)) {
+                if (!n.isVisibleToUser()) continue;
+                CharSequence t = n.getContentDescription() != null ? n.getContentDescription() : n.getText();
+                if (t == null || t.length() > 8) continue; // 안내문·메뉴 글 속 낱말은 건너뜀
+                noteFound("글자 '" + t + "'");
+                return n;
+            }
+        }
+        AccessibilityNodeInfo n = findByIdPart(root, 0);
+        if (n != null) noteFound("id 일부 " + n.getViewIdResourceName());
+        return n;
+    }
+
+    AccessibilityNodeInfo findByIdPart(AccessibilityNodeInfo n, int depth) {
+        if (n == null || depth > 40) return null;
+        String id = n.getViewIdResourceName();
+        if (id != null && n.isVisibleToUser()) {
+            String low = id.toLowerCase();
+            for (String part : BTN_ID_PARTS) if (low.contains(part)) return n;
+        }
+        for (int i = 0; i < n.getChildCount(); i++) {
+            AccessibilityNodeInfo r = findByIdPart(n.getChild(i), depth + 1);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    void noteFound(String by) {
+        if (!by.equals(lastFoundBy)) { Log.i(TAG, "safety button found by " + by); lastFoundBy = by; }
+    }
+
+    /** 버튼(또는 버튼 크기 정도의 눌리는 부모)을 누른다. 실패하면 한가운데를 톡. */
+    boolean pressButton(AccessibilityNodeInfo btn) {
+        Rect br = new Rect();
+        btn.getBoundsInScreen(br);
+        AccessibilityNodeInfo n = btn;
+        for (int depth = 0; n != null && depth < 3; depth++, n = n.getParent()) {
+            Rect r = new Rect();
+            n.getBoundsInScreen(r);
+            // 검색창 같은 큰 묶음을 누르지 않도록 버튼의 2배 넘는 부모는 건너뜀
+            if (depth > 0 && (r.width() > br.width() * 2 || r.height() > br.height() * 2)) break;
+            if ((n.isClickable() || depth == 0) && n.isEnabled()) {
+                selfClickAt = System.currentTimeMillis();
+                if (n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+            }
+        }
+        return tapCenter(br);
+    }
+
+    boolean tapCenter(Rect r) {
+        if (r == null || r.isEmpty()) return false;
+        Path p = new Path();
+        p.moveTo(r.exactCenterX(), r.exactCenterY());
+        GestureDescription.Builder b = new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(p, 0, 60));
+        b.setDisplayId(btnDisplay);
+        selfClickAt = System.currentTimeMillis();
+        boolean ok = dispatchGesture(b.build(), null, null);
+        Log.i(TAG, "tap gesture at " + r.centerX() + "," + r.centerY() + " display " + btnDisplay + ": " + ok);
+        return ok;
+    }
+
+    long verifyAt = 0;  // 누른 뒤 화면이 바뀌었는지 볼 시각
 
     /** 클릭 가능한 자신 또는 가장 가까운 부모를 누른다. */
     boolean clickNodeOrParent(AccessibilityNodeInfo n) {
@@ -158,18 +236,31 @@ public class AutoDriveService extends AccessibilityService {
 
     void check() {
         if (closeAdPopup()) { visibleSince = 0; return; }
-        if (!Prefs.enabled(this)) { visibleSince = 0; return; }
+        if (!Prefs.enabled(this)) { visibleSince = 0; verifyAt = 0; return; }
         long now = System.currentTimeMillis();
         AccessibilityNodeInfo btn = findButton();
+        if (verifyAt != 0 && now >= verifyAt) {
+            verifyAt = 0;
+            // 누른다고 했는데 2초 뒤에도 버튼이 그대로면(클릭이 안 먹음) 손가락 톡으로 한 번 더
+            if (btn != null && now - lastUserAction > 2000) {
+                Rect r = new Rect();
+                btn.getBoundsInScreen(r);
+                Log.i(TAG, "button still visible after click, retry with tap");
+                tapCenter(r);
+                visibleSince = 0;
+                return;
+            }
+        }
         if (btn == null) { visibleSince = 0; return; }
         if (visibleSince == 0) visibleSince = now;
         long waitMs = Prefs.delaySec(this) * 1000L;
         long idleFrom = Math.max(visibleSince, lastUserAction);
         if (now - idleFrom >= waitMs && now - lastClick > waitMs) {
             selfClickAt = now;
-            boolean ok = btn.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            boolean ok = pressButton(btn);
             lastClick = now;
             visibleSince = 0;
+            verifyAt = now + 2000;
             Log.i(TAG, "clicked safety driving button: " + ok);
         }
     }
