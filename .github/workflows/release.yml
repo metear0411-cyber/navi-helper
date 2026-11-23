@@ -1,0 +1,68 @@
+# v로 시작하는 태그(예: v1.2.2)를 올리면 APK를 빌드해 GitHub Releases에 붙인다.
+# 서명 키는 저장소 시크릿에서만 꺼낸다:
+#   NAVI_KEYSTORE_B64  = release.keystore를 base64로 바꾼 글
+#   NAVI_KEYSTORE_PASS = 키 비밀번호
+# 시크릿이 없으면 빌드를 멈춘다(엉뚱한 새 키로 서명하면 기존 앱 위에 덮어 깔리지 않는다).
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android SDK 도구
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" "platforms;android-33" > /dev/null
+          echo "ANDROID_SDK=$SDK" >> "$GITHUB_ENV"
+      - name: 서명 키 꺼내기
+        env:
+          KS_B64: ${{ secrets.NAVI_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [[ "$GITHUB_REF" != refs/tags/* ]]; then
+              # 손으로 돌린 시험 빌드: 버리는 임시 키로 빌드만 확인(Releases에는 안 올림)
+              echo "::warning::시크릿 없음 - 임시 키로 시험 빌드만 합니다"
+              keytool -genkeypair -keystore "$RUNNER_TEMP/release.keystore" -storepass test123 -keypass test123 \
+                -alias release -keyalg RSA -keysize 2048 -validity 1 -dname "CN=test" > /dev/null
+              echo "KEYSTORE_PASS=test123" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "::error::NAVI_KEYSTORE_B64 시크릿이 없습니다"; exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          chmod 600 "$RUNNER_TEMP/release.keystore"
+      - name: 빌드
+        env:
+          KEYSTORE: ${{ runner.temp }}/release.keystore
+          KS_PASS_SECRET: ${{ secrets.NAVI_KEYSTORE_PASS }}
+        run: |
+          [ -n "$KS_PASS_SECRET" ] && export KEYSTORE_PASS="$KS_PASS_SECRET"
+          bash build.sh
+      - name: 이름 붙이기
+        run: |
+          VER=$(grep -o 'versionName="[^"]*"' app/AndroidManifest.xml | cut -d'"' -f2)
+          cp app/out/navi-helper.apk "navi-helper-$VER.apk"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+      - name: Releases에 올리기
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          NOTES=$(git log -1 --format=%B "$TAG")
+          gh release create "$TAG" "navi-helper-$VER.apk" --title "$TAG" --notes "$NOTES" --latest \
+            || gh release upload "$TAG" "navi-helper-$VER.apk" --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navi-helper-${{ env.VER }}
+          path: navi-helper-*.apk
