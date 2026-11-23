@@ -74,9 +74,9 @@ jobs:
           [ -f navi-helper-kr.local.tmapauto.apk ] && FILES="$FILES navi-helper-kr.local.tmapauto.apk"
           NOTES="$NOTES
 
-## 어떤 파일을 받나요
-- **navi-helper.apk**: 일반 설치용 (패키지 kr.navihelper)
-- **navi-helper-kr.local.tmapauto.apk**: 예전 개인용 빌드(kr.local.tmapauto)를 쓰던 기기에 덮어 설치하는 용도. 해당 기기가 아니면 받지 마세요."
+          ## 어떤 파일을 받나요
+          - **navi-helper.apk**: 일반 설치용 (패키지 kr.navihelper)
+          - **navi-helper-kr.local.tmapauto.apk**: 예전 개인용 빌드(kr.local.tmapauto)를 쓰던 기기에 덮어 설치하는 용도. 해당 기기가 아니면 받지 마세요."
           gh release create "$TAG" $FILES --title "$TAG" --notes "$NOTES" --latest \
             || gh release upload "$TAG" $FILES --clobber
       - uses: actions/upload-artifact@v4

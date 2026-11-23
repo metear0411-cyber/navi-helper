@@ -73,6 +73,9 @@ adb shell pm grant kr.navihelper android.permission.WRITE_SECURE_SETTINGS
 [Releases](../../releases)에서 새 `navi-helper.apk`를 받아 **덮어 설치**합니다.
 **앱을 지우고 다시 깔면 adb 권한이 사라집니다.** 그럴 땐 권한 받기를 다시 하면 됩니다.
 
+> **1.2.2부터 서명 키가 바뀌었습니다.** 1.2.1 이하의 `navi-helper.apk`를 쓰시던 분은 덮어 설치가 안 되니,
+> 예전 앱을 **지우고 새로 설치한 뒤 권한 받기(Shizuku)를 한 번 다시** 해 주세요. 그 뒤로는 다시 덮어 설치로 업데이트됩니다.
+
 ## 잘 안 될 때
 - **'Shizuku가 실행 중이 아닙니다'**: Shizuku 단계 3~6을 다시 하세요. 재부팅하면 Shizuku는 꺼집니다.
 - **페어링 알림이 안 보임**: 화면 위쪽을 내려 알림창을 열어 보세요.
@@ -95,6 +98,9 @@ export KEYSTORE=/path/to/your.keystore   # 없으면 새로 만듭니다
 ./build.sh
 ```
 `libs/`의 Shizuku API(jar)를 같이 넣어 빌드합니다.
+
+릴리스는 GitHub Actions가 합니다. `v1.2.3`처럼 `v`로 시작하는 태그를 올리면 서명된 APK가 Releases에 붙습니다.
+개발·릴리스 절차는 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)를 보세요.
 
 ## 어떻게 동작하나
 - **자동 주행**: 안드로이드 접근성 API로 티맵 창에서 `com.skt.tmap.ku:id/button_safety_driving` 버튼을 찾아 `ACTION_CLICK`을 보냅니다. 사람이 손으로 누르는 것과 같은 방식이고, 티맵의 코드나 데이터를 수정하지 않습니다.
