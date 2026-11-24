@@ -102,14 +102,23 @@ public class AutoDriveService extends AccessibilityService {
                 || id.contains("video") || id.contains("shortform");
     }
 
+    // 이번 점검에서 본 티맵 상태(원인 찾기 기록용)
+    boolean sawTmap, sawDriving;
+    String frontPkg = "";
+
     AccessibilityNodeInfo findButton() {
+        sawTmap = false; sawDriving = false; frontPkg = "";
         SparseArray<List<AccessibilityWindowInfo>> all = getWindowsOnAllDisplays();
         for (int i = 0; i < all.size(); i++) {
             for (AccessibilityWindowInfo w : all.valueAt(i)) {
                 // 기본: 전체 화면(본 화면, display 0)의 티맵만. 홈 분할 칸(가상 화면)은 건너뜀.
                 if (w.getDisplayId() != android.view.Display.DEFAULT_DISPLAY && !Prefs.inEmbedded(this)) continue;
                 AccessibilityNodeInfo root = w.getRoot();
+                if (root != null && w.getDisplayId() == android.view.Display.DEFAULT_DISPLAY
+                        && w.getType() == AccessibilityWindowInfo.TYPE_APPLICATION && frontPkg.isEmpty())
+                    frontPkg = String.valueOf(root.getPackageName());
                 if (root == null || !PKG.contentEquals(String.valueOf(root.getPackageName()))) continue;
+                sawTmap = true;
                 AccessibilityNodeInfo n = findIn(root);
                 if (n != null) { btnDisplay = w.getDisplayId(); return n; }
             }
@@ -124,7 +133,7 @@ public class AutoDriveService extends AccessibilityService {
     AccessibilityNodeInfo findIn(AccessibilityNodeInfo root) {
         for (String id : DRIVING_IDS) {
             for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(id)) {
-                if (n.isVisibleToUser()) return null; // 이미 주행 중
+                if (n.isVisibleToUser()) { sawDriving = true; return null; } // 이미 주행 중
             }
         }
         for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByViewId(BTN)) {
@@ -265,6 +274,7 @@ public class AutoDriveService extends AccessibilityService {
         if (!Prefs.enabled(this)) { visibleSince = 0; return; }
         long now = System.currentTimeMillis();
         AccessibilityNodeInfo btn = findButton();
+        noteState(now, btn != null);
         if (btn == null) { visibleSince = 0; return; }
         if (visibleSince == 0) visibleSince = now;
         long waitMs = Prefs.delaySec(this) * 1000L;
@@ -277,6 +287,38 @@ public class AutoDriveService extends AccessibilityService {
             Log.i(TAG, "clicked safety driving button: " + ok);
             Prefs.note(this, "자동 주행 누름(" + lastFoundBy + "): " + (ok ? "성공" : "실패"));
         }
+    }
+
+    /** 티맵 상태가 바뀔 때만 한 줄 남긴다: 주행 화면 / 첫 화면 / 화면에 없음. */
+    String state = "";
+    long stateSince = 0;
+    String pending = "";
+    long pendingSince = 0;
+    void noteState(long now, boolean homeBtn) {
+        String st = sawDriving ? "주행" : homeBtn ? "첫화면" : sawTmap ? "기타" : "없음";
+        if (st.equals(state)) { pending = ""; return; }
+        // 화면 전환 중 잠깐 스친 상태는 기록하지 않음: 3초 넘게 이어져야 인정
+        if (!st.equals(pending)) { pending = st; pendingSince = now; return; }
+        if (now - pendingSince < 3000) return;
+        pending = "";
+        now = pendingSince;
+        String prev = state;
+        long dur = stateSince == 0 ? 0 : (now - stateSince) / 1000;
+        state = st; stateSince = now;
+        if (prev.isEmpty()) return;
+        String took = " (직전 " + prev + " " + (dur / 60) + "분 " + (dur % 60) + "초)";
+        String msg;
+        switch (st) {
+            case "주행": msg = "티맵 주행 화면 들어감"; break;
+            case "첫화면":
+                msg = "주행".equals(prev) ? "티맵 주행이 풀림 → 첫 화면" : "티맵 첫 화면";
+                break;
+            case "기타": msg = "티맵 다른 화면(검색·메뉴 등)"; break;
+            default: msg = "티맵이 화면에서 사라짐, 앞 화면: " + (frontPkg.isEmpty() ? "알 수 없음" : frontPkg); break;
+        }
+        if ("주행".equals(prev) && now - lastUserAction < 5000) msg += ", 5초 안에 사람 조작 있었음";
+        Log.i(TAG, msg + took);
+        Prefs.note(this, msg + took);
     }
 
     @Override public void onInterrupt() {}

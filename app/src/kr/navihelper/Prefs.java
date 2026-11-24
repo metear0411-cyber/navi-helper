@@ -36,7 +36,7 @@ final class Prefs {
         String all = t + " " + msg + "\n" + recent(c);
         String[] lines = all.split("\n");
         StringBuilder b = new StringBuilder();
-        for (int i = 0; i < Math.min(8, lines.length); i++) b.append(lines[i]).append('\n');
+        for (int i = 0; i < Math.min(15, lines.length); i++) b.append(lines[i]).append('\n');
         p(c).edit().putString("recent", b.toString()).apply();
     }
 }
