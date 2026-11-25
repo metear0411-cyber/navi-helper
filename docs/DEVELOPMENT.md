@@ -72,6 +72,7 @@ Windows에서는 Git Bash로 돌린다(`build.sh`가 `.exe`/`.bat` 도구를 알
 | `EmbedDensity.java` | 런처 홈 분할 칸 가상 화면(`Embedded_Task@…`)의 dpi를 `IWindowManager.setForcedDisplayDensityForUser(id, dpi, 0)`로 맞춤 |
 | `AccEnabler.java` | `WRITE_SECURE_SETTINGS`로 `enabled_accessibility_services`에 이 앱을 다시 넣음 |
 | `BootReceiver.java`, `RecheckJob.java` | 부팅 직후·10초·30초·90초·3분 뒤 접근성 확인 |
+| `KeepAliveWallpaper.java` | 쓰지 않는 빈 배경화면 서비스. FYT가 시동 끌 때 이 앱을 강제 종료하지 않게 하는 용도(아래 7절) |
 | `ShizukuGrant.java` | Shizuku 셸 권한으로 `pm grant <이 앱> WRITE_SECURE_SETTINGS` 1회 실행 |
 | `HelpText.java` | 앱 안 도움말(README 설치 내용과 맞춰 둘 것) |
 | `MainActivity.java` | 설정 화면 |
@@ -88,6 +89,8 @@ Windows에서는 Git Bash로 돌린다(`build.sh`가 `.exe`/`.bat` 도구를 알
 - 런처 `launcher10001`의 홈 분할 칸은 가상 디스플레이. 이름 `Embedded_Task@<해시>`, dpi = 본 화면 240 × 고정 비율 = 160. 런처가 칸을 다시 만들 때마다 id가 바뀐다.
 - 가상 디스플레이 회전 고정은 `SET_ORIENTATION` 권한이 필요해서 앱으로는 못 한다(본 화면은 adb `cmd window fixed-to-user-rotation enabled`로 가능).
 - 재부팅·시동 때 FYT가 접근성 설정을 초기화하는 경우가 있다 → `AccEnabler`.
+- **시동 끔 = 재부팅이 아니라 잠들기(休眠)**. 그래서 `BOOT_COMPLETED`가 오지 않는다. 잠들 때 `com.syu.ms`(`a.k.D()`→`B()`)가 실행 중인 앱을 거의 다 `forceStopPackage`한다. 안드로이드는 강제 종료된 앱의 접근성 서비스를 `enabled_accessibility_services`에서 지우고, 강제 종료된 앱은 앱을 직접 열기 전까지 어떤 방송도 못 받는다 → 시동 켜도 자동 주행이 죽은 채(11-25 원장 기기 기록으로 확인: 09:25 시동 끔 뒤 16:32 앱을 열어서야 다시 켜짐).
+- 강제 종료 예외: `com.syu.ms` 안 `assets/app_category/protected_app.txt`(정규식 find, 고칠 수 없음), 홈 런처 앱, 키보드(`InputMethod`) 앱, **배경화면 서비스(`WallpaperService` 인텐트)를 선언한 앱**. 마지막 것을 이용해 1.2.5부터 빈 배경화면 서비스를 둔다(meta-data가 없어서 배경화면 고르기 목록엔 안 나옴).
 - `setForcedDisplayDensityForUser`의 사용자 인자로 `-2`(USER_CURRENT)를 주면 `INTERACT_ACROSS_USERS_FULL`이 필요해서 실패한다. `0`을 쓴다.
 - 와이파이 STA+AP 동시 지원 안 함(핫스팟 켜면 와이파이 클라이언트 꺼짐).
 
@@ -98,6 +101,7 @@ Windows에서는 Git Bash로 돌린다(`build.sh`가 `.exe`/`.bat` 도구를 알
 - 사용자 기기 정보(펌웨어 덤프, 설정값, 개인 정보)는 저장소에 올리지 않는다.
 
 ## 9. 다음 할 일 후보
+- 1.2.5 실기기 확인: 시동 껐다 켠 뒤 최근 동작에 '자동 주행 서비스 시작'·'접근성이 꺼져 있어서 다시 켬'이 **안** 찍히고 티맵이 자동으로 주행되면 해결
 - 티맵 버튼을 ID 말고 글자·설명으로도 찾기(티맵 업데이트 대비)
 - 앱에 진단 정보 복사 버튼(제보 받을 때 쓰기)
 - Shizuku 흐름 실기기 검증(관리자 네비는 이미 권한이 있어 미검증)

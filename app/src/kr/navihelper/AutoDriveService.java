@@ -56,6 +56,7 @@ public class AutoDriveService extends AccessibilityService {
 
     @Override protected void onServiceConnected() {
         Log.i(TAG, "connected");
+        Prefs.note(this, "자동 주행 서비스 시작");
         instance = this;
         h.removeCallbacks(tick);
         h.postDelayed(tick, CHECK_MS);

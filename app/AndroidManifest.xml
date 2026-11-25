@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="kr.navihelper" android:versionCode="12" android:versionName="1.2.4">
+    package="kr.navihelper" android:versionCode="14" android:versionName="1.2.5">
     <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="33"/>
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -37,6 +37,13 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
+        <!-- FYT가 시동 끌 때 이 앱을 강제 종료하지 않게 하는 빈 배경화면 서비스(KeepAliveWallpaper.java 참고) -->
+        <service android:name=".KeepAliveWallpaper" android:exported="true"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService"/>
+            </intent-filter>
+        </service>
         <service android:name=".RecheckJob" android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
     </application>

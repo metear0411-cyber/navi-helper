@@ -40,6 +40,7 @@ final class AccEnabler {
         if (!Prefs.keepOn(c) || isEnabled(c)) return false;
         if (!hasPermission(c)) {
             Log.w(TAG, "accessibility off, but no WRITE_SECURE_SETTINGS (" + why + ")");
+            Prefs.note(c, "접근성이 꺼져 있는데 adb 권한이 없어 못 켬 (" + why + ")");
             return false;
         }
         try {
@@ -58,6 +59,7 @@ final class AccEnabler {
             Settings.Secure.putString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, sb.toString());
             Settings.Secure.putInt(c.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, 1);
             Prefs.markRestored(c, why);
+            Prefs.note(c, "접근성이 꺼져 있어서 다시 켬 (" + why + ")");
             Log.i(TAG, "accessibility re-enabled (" + why + ")");
             return true;
         } catch (Throwable t) {
